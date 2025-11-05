@@ -1,0 +1,56 @@
+# The MIT License (MIT)
+# Copyright © 2023 Yuma Rao
+# Graphite-AI
+# Copyright © 2023 Graphite-AI
+
+# Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated
+# documentation files (the “Software”), to deal in the Software without restriction, including without limitation
+# the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software,
+# and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
+
+# The above copyright notice and this permission notice shall be included in all copies or substantial portions of
+# the Software.
+
+# THE SOFTWARE IS PROVIDED “AS IS”, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO
+# THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL
+# THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
+# OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+# DEALINGS IN THE SOFTWARE.
+
+from graphite.solvers import NearestNeighbourSolver, NearestNeighbourMultiSolver2, NearestNeighbourMultiSolver4
+from graphite.utils.graph_utils import get_tour_distance, get_multi_minmax_tour_distance, get_multi_minmax_tour_distance_tw
+from graphite.protocol import GraphV2Problem, GraphV2ProblemMulti, GraphV2ProblemMultiConstrained, GraphV2ProblemMultiConstrainedTW
+
+BENCHMARK_SOLUTIONS = {
+    'Metric TSP': NearestNeighbourSolver,
+    'General TSP': NearestNeighbourSolver,
+    'Metric mTSP': NearestNeighbourMultiSolver2,
+    'General mTSP': NearestNeighbourMultiSolver2,
+    'Metric cmTSP': NearestNeighbourMultiSolver4,
+    'General cmTSP': NearestNeighbourMultiSolver4,
+    'Metric cmTSPTW': NearestNeighbourMultiSolver4,
+    'General cmTSPTW': NearestNeighbourMultiSolver4,
+} # mapping benchmark solvers to each problem
+
+PROBLEM_TYPE = {
+    'Metric TSP': GraphV2Problem,
+    'General TSP': GraphV2Problem,
+    'Metric mTSP': GraphV2ProblemMulti,
+    'General mTSP': GraphV2ProblemMulti,
+    'Metric cmTSP': GraphV2ProblemMultiConstrained,
+    'General cmTSP': GraphV2ProblemMultiConstrained,
+    'Metric cmTSPTW': GraphV2ProblemMultiConstrainedTW,
+    'General cmTSPTW': GraphV2ProblemMultiConstrainedTW,
+}
+
+COST_FUNCTIONS = {
+    'Metric TSP': get_tour_distance,
+    'General TSP': get_tour_distance,
+    'Metric mTSP': get_multi_minmax_tour_distance,
+    'General mTSP': get_multi_minmax_tour_distance,
+    'Metric cmTSP': get_multi_minmax_tour_distance,
+    'General cmTSP': get_multi_minmax_tour_distance,
+    'Metric cmTSPTW': get_multi_minmax_tour_distance_tw,
+    'General cmTSPTW': get_multi_minmax_tour_distance_tw,
+}
+

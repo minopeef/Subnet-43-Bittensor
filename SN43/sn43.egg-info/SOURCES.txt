@@ -1,0 +1,14 @@
+README.md
+pyproject.toml
+neurons/__init2__.py
+neurons/__init__.py
+neurons/validator.py
+sn43/__init__.py
+sn43.egg-info/PKG-INFO
+sn43.egg-info/SOURCES.txt
+sn43.egg-info/dependency_links.txt
+sn43.egg-info/entry_points.txt
+sn43.egg-info/requires.txt
+sn43.egg-info/top_level.txt
+tests/test_local.py
+tests/test_manual.py
