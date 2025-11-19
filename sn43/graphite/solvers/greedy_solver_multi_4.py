@@ -18,18 +18,15 @@
 # DEALINGS IN THE SOFTWARE.
 
 from typing import List, Union
-import matplotlib.pyplot as plt
-from graphite.solvers.base_solver import BaseSolver
-from graphite.protocol import GraphV2Problem, GraphV2ProblemMulti, GraphV2ProblemMultiConstrained, GraphV2ProblemMultiConstrainedTW
-from graphite.utils.graph_utils import timeout, get_multi_minmax_tour_distance
-from graphite.data.dataset_utils import load_default_dataset
-from graphite.data.distance import geom_edges, euc_2d_edges, man_2d_edges
+from sn43.graphite.solvers.base_solver import BaseSolver
+from sn43.graphite.protocol import GraphV2Problem, GraphV2ProblemMulti, GraphV2ProblemMultiConstrained, GraphV2ProblemMultiConstrainedTW
+from sn43.graphite.data.dataset_utils import load_default_dataset
+from sn43.graphite.data.distance import geom_edges, euc_2d_edges, man_2d_edges
 import numpy as np
 import time
 import asyncio
 import random
 import math
-import bittensor as bt
 
 class NearestNeighbourMultiSolver4(BaseSolver):
     '''

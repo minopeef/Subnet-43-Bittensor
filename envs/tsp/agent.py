@@ -1,25 +1,26 @@
 """
 Example miner agent that solves TSP problems.
-Miners should implement their own solve_problem method.
 """
 import asyncio
 import sn43
 from typing import Dict, Any, List
-from graphite.utils.constants import BENCHMARK_SOLUTIONS, PROBLEM_TYPE
 
 class TSPMinerAgent(sn43.Agent):
     """Base agent class for TSP miners."""
     
-    def init(self, ctx: sn43.Context):
-        """Initialize the agent."""
-        print(f"TSP Miner Agent initialized")
+    def __init__(self):
+        super().__init__()
+        print(f"TSP Miner Agent initialized", flush=True)
         self.solve_count = 0
+    
+    def init(self, ctx: sn43.Context) -> None:
+        print(f"TSP Miner Agent init called with context", flush=True)
     
     @sn43.entrypoint
     async def solve_problem(
         self, 
-        ctx: sn43.Context, 
-        problem_data: Dict[str, Any]
+        problem_data: Dict[str, Any],
+        timeout: float = 60.0
     ) -> Dict[str, Any]:
         """
         Solve a TSP problem.
@@ -31,40 +32,51 @@ class TSPMinerAgent(sn43.Agent):
         Returns:
             Dictionary with solution and metadata
         """
-        
-        # Example: Call greedy solver (miners should implement their own)
+        import sys
+
+        # Example: Call greedy solver
         solution = await self._greedy_solve(problem_data)
+
         
         return {
             "solution": solution,
         }
     
     async def _greedy_solve(self, problem_data: Dict[str, Any]) -> List[Any]:
-        """
-        Implement your solving logic here.
-        This is just a placeholder - miners should replace this.
-        """
-        # For demonstration, return a simple tour
-        n_nodes = problem_data["n_nodes"]
-        problem_type = problem_data["problem_type"]
+        """Implement solving logic."""
+        import sys
 
-        problem_formulation = PROBLEM_TYPE.get(problem_type)
-        greedy_solver_class = BENCHMARK_SOLUTIONS.get(problem_type)
-        if greedy_solver_class:
-            # Use the benchmark greedy solver if available
-            problem = problem_formulation(**problem_data)
-            greedy_solver = greedy_solver_class([problem])
+        try:
+            # LAZY IMPORT - only import when actually solving
+            from sn43.graphite.utils.constants import BENCHMARK_SOLUTIONS, PROBLEM_TYPE
 
-            # Recreate edges
-            problem.edges = await sn43.tools.recreate_edges(problem)
-            
-            # Solve
-            solution = await asyncio.wait_for(
-                greedy_solver.solve_problem(problem),
-                timeout=30
-            )
+            n_nodes = problem_data["n_nodes"]
+            problem_type = problem_data["problem_type"]
 
-            return solution
-        else:
-            # Default: return nodes in order
-            return 0
+            problem_formulation = PROBLEM_TYPE.get(problem_type)
+            greedy_solver_class = BENCHMARK_SOLUTIONS.get(problem_type)
+
+            if greedy_solver_class:
+                problem = problem_formulation(**problem_data)
+
+                greedy_solver = greedy_solver_class([problem])
+
+#                 problem.edges = await sn43.tools.recreate_edges(problem)
+
+                solution = await asyncio.wait_for(
+                    greedy_solver.solve_problem(problem),
+                    timeout=30
+                )
+
+                return solution
+            else:
+                return list(range(n_nodes))
+
+        except Exception as e:
+            print(f"[MINER ERROR] {type(e).__name__}: {e}", file=sys.stderr, flush=True)
+            import traceback
+            traceback.print_exc(file=sys.stderr)
+            raise
+    
+# Instantiate the agent
+agent = TSPMinerAgent()

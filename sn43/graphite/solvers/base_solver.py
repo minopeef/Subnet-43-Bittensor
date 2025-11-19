@@ -19,14 +19,11 @@
 
 from abc import ABC, abstractmethod
 from typing import List
-from graphite.utils.graph_utils import valid_problem, timeout
-from graphite.protocol import GraphV2Problem, GraphV2ProblemMulti, GraphV2ProblemMultiConstrained, GraphV2ProblemMultiConstrainedTW
-import bittensor as bt
+from sn43.graphite.utils.graph_utils import valid_problem, timeout
+from sn43.graphite.protocol import GraphV2Problem, GraphV2ProblemMulti, GraphV2ProblemMultiConstrained, GraphV2ProblemMultiConstrainedTW
 import asyncio
-import concurrent.futures
 import time
 from typing import Union
-import numpy as np
 
 DEFAULT_SOLVER_TIMEOUT = 20
 
@@ -88,5 +85,5 @@ class BaseSolver(ABC):
             #     return False
 
         else:
-            bt.logging.error(f"base _ current solver: {self.__class__.__name__} cannot handle received problem: {problem.problem_type}")
+            print(f"base _ current solver: {self.__class__.__name__} cannot handle received problem: {problem.problem_type}")
             return False

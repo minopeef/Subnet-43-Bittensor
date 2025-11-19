@@ -20,7 +20,7 @@
 import math
 from typing import List, Union
 import numpy as np
-from graphite.protocol import GraphV2Problem, GraphV2ProblemMulti, GraphV2ProblemMultiConstrained, GraphV2ProblemMultiConstrainedTW
+from sn43.graphite.protocol import GraphV2Problem, GraphV2ProblemMulti, GraphV2ProblemMultiConstrained, GraphV2ProblemMultiConstrainedTW
 from functools import wraps, partial
 import bittensor as bt
 import asyncio

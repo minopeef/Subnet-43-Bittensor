@@ -5,12 +5,15 @@ services:
       dockerfile: Dockerfile
     image: thebes1618/sn43:latest
     container_name: sn43-validator
+    network_mode: "host" 
     restart: unless-stopped
     mem_reservation: "12g"
     mem_limit:       "16g"
     env_file:
       - .env
     volumes:
+      - ./best_agents:/app/best_agents:rw    # Persist best agents
+      - ./agents:/app/agents:rw              # Persist pulled agents
       - ./.env:/app/.env:ro
       - ./neurons:/app/neurons # live code updates in docker for neurons
       - ./sn43:/app/sn43  # live code updates in docker for sn43

@@ -9,10 +9,18 @@ from enum import Enum
 class ProblemType(Enum):
     TSP = "Metric TSP"
     MTSP = "Metric mTSP"
-    MDMTSP = "Metric mTSP"
-    CMDMTSP = "Metric cmTSP"
-    RCMDMTSP = "Metric cmTSP"
-    RCMDMTSPTW = "Metric cmTSPTW"
+    MDMTSP = "Metric mDmTSP"
+    CMDMTSP = "Metric cmDmTSP"
+    RCMDMTSP = "Metric rcmDmTSP"
+    RCMDMTSPTW = "Metric rcmDmTSPTW"
+
+    @classmethod
+    def from_value(cls, value: str) -> 'ProblemType':
+        """Get enum from its value."""
+        for member in cls:
+            if member.value == value:
+                return member
+        raise ValueError(f"No {cls.__name__} with value '{value}'")
 
 @dataclass
 class ProblemBin:
@@ -41,40 +49,39 @@ class ProblemTypeConfig:
 
 # Define bin configurations for each problem type
 TSP_BINS = [
-    ProblemBin("small", 100, 500, 0.2),
-    ProblemBin("medium", 500, 1500, 0.3),
-    ProblemBin("large", 1500, 3000, 0.3),
-    ProblemBin("xlarge", 3000, 5000, 0.2),
+    ProblemBin("small", 100, 500, 0.3),
+    ProblemBin("medium", 500, 1000, 0.3),
+    # ProblemBin("large", 1000, 2000, 0.4),
 ]
 
 MTSP_BINS = [
     ProblemBin("small", 100, 400, 0.3),
     ProblemBin("medium", 400, 1000, 0.4),
-    ProblemBin("large", 1000, 2000, 0.3),
+    # ProblemBin("large", 1000, 2000, 0.3),
 ]
 
 MDMTSP_BINS = [
     ProblemBin("small", 100, 400, 0.3),
     ProblemBin("medium", 400, 1000, 0.4),
-    ProblemBin("large", 1000, 2000, 0.3),
+    # ProblemBin("large", 1000, 2000, 0.3),
 ]
 
 CMDMTSP_BINS = [
     ProblemBin("small", 100, 400, 0.3),
     ProblemBin("medium", 400, 1000, 0.4),
-    ProblemBin("large", 1000, 2000, 0.3),
+    # ProblemBin("large", 1000, 2000, 0.3),
 ]
 
 RCMDMTSP_BINS = [
     ProblemBin("small", 100, 400, 0.4),
     ProblemBin("medium", 400, 800, 0.4),
-    ProblemBin("large", 800, 1500, 0.2),
+    # ProblemBin("large", 800, 1500, 0.2),
 ]
 
 RCMDMTSPTW_BINS = [
     ProblemBin("small", 100, 400, 0.4),
     ProblemBin("medium", 400, 800, 0.4),
-    ProblemBin("large", 800, 1500, 0.2),
+    # ProblemBin("large", 800, 1500, 0.2),
 ]
 
 # Master configuration for all problem types

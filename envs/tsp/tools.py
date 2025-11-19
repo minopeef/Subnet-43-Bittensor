@@ -11,17 +11,17 @@ from typing import List, Dict, Any, Optional, Tuple
 from envs.utils import ProblemType, ProblemTypeConfig, select_problem_type, select_bin
 
 # Import from your existing codebase
-from graphite.protocol import (
+from sn43.graphite.protocol import (
     GraphV2Problem, GraphV2ProblemMulti, GraphV2ProblemMultiConstrained,
     GraphV2ProblemMultiConstrainedTW
 )
-from graphite.data.distance import geom_edges, euc_2d_edges, man_2d_edges
-from graphite.utils.graph_utils import (
+from sn43.graphite.data.distance import geom_edges, euc_2d_edges, man_2d_edges
+from sn43.graphite.utils.graph_utils import (
     get_multi_minmax_tour_distance, get_multi_minmax_tour_distance_tw,
     is_valid_solution, get_tour_distance
 )
-from graphite.solvers.greedy_solver_multi_4 import NearestNeighbourMultiSolver4
-from graphite.data.dataset_utils import load_default_dataset
+from sn43.graphite.solvers.greedy_solver_multi_4 import NearestNeighbourMultiSolver4
+from sn43.graphite.data.dataset_utils import load_default_dataset
 
 # Global dataset storage
 LOADED_DATASETS = {}
@@ -29,16 +29,20 @@ LOADED_DATASETS = {}
 def init_datasets():
     """Initialize datasets on container startup."""
     global LOADED_DATASETS
+    print("init_datasets called", flush=True)
     class MockNeuron:
         pass
     neuron = MockNeuron()
+    print("About to load_default_dataset", flush=True)
     load_default_dataset(neuron)
+    print(f"Datasets loaded: {len(neuron.loaded_datasets)} datasets", flush=True)
     LOADED_DATASETS = neuron.loaded_datasets
+    print("init_datasets complete", flush=True)
 
 @sn43.tool
 async def generate_problem(
     ctx: sn43.Context,
-    problem_type: Optional[str] = None,
+    problem_type_str: Optional[str] = None,
     n_nodes: Optional[int] = None
 ) -> Dict[str, Any]:
     """
@@ -52,12 +56,14 @@ async def generate_problem(
     Returns:
         Dictionary with problem specification
     """
+    import logging
+    
     # Select problem type if not specified
-    if problem_type is None:
+    if problem_type_str is None:
         config = select_problem_type()
     else:
         from envs.utils import PROBLEM_CONFIGS
-        config = PROBLEM_CONFIGS[ProblemType(problem_type)]
+        config = PROBLEM_CONFIGS[ProblemType.from_value(problem_type_str)]
     
     # Select bin and n_nodes
     selected_bin = select_bin(config)
@@ -118,12 +124,17 @@ async def generate_problem(
     ctx.set("current_problem", problem)
     ctx.set("problem_config", config.__dict__)
     ctx.set("bin_id", selected_bin.bin_id)
+
+    problem.edges = await recreate_edges(problem)
+    if problem.edges is not None:
+        problem.edges = problem.edges.tolist()
+    problem_dict = problem.dict()
     
     return {
         "problem_type": config.problem_type.value,
         "bin_id": selected_bin.bin_id,
         "n_nodes": n_nodes,
-        "problem_data": problem.dict()
+        "problem_data": problem_dict
     }
 
 async def _generate_cmdmtsp(n_nodes: int, selected_ids: List[int], dataset_ref: str):
@@ -265,7 +276,6 @@ async def _generate_rcmdmtsptw(n_nodes: int, selected_ids: List[int], dataset_re
 @sn43.tool
 async def recreate_edges(problem):
     """Recreate distance matrix from node coordinates."""
-    print("Recreating edges for problem:", problem)
     node_coords_np = LOADED_DATASETS[problem.dataset_ref]["data"]
     node_coords = np.array([node_coords_np[i][1:] for i in problem.selected_ids])
     if problem.cost_function == "Geom":
@@ -280,7 +290,7 @@ async def recreate_edges(problem):
 async def score_solution(
     ctx: sn43.Context,
     solution: List[Any],
-    problem_data: Optional[Dict] = None
+    problem_data: Optional[Dict] = None,
 ) -> Dict[str, Any]:
     """
     Score a solution for the current problem.
@@ -346,7 +356,7 @@ async def get_baseline_score(ctx: sn43.Context) -> float:
     if isinstance(problem, (GraphV2ProblemMultiConstrained, GraphV2ProblemMultiConstrainedTW)):
         solver = NearestNeighbourMultiSolver4(problem_types=[problem])
     else:
-        from graphite.solvers.greedy_solver_vali import NearestNeighbourSolverVali
+        from sn43.graphite.solvers.greedy_solver_vali import NearestNeighbourSolverVali
         solver = NearestNeighbourSolverVali()
     
     baseline_solution = await asyncio.wait_for(

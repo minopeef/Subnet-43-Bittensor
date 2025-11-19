@@ -10,6 +10,7 @@ import aiofiles
 import traceback
 import logging
 import bittensor as bt
+import requests
 import numpy as np
 import json
 import shutil
@@ -153,10 +154,12 @@ class BestAgentStorage:
         self.records[problem_key] = new_record
         self.save()
         
+        prev_score_str = f"{existing.score:.4f}" if existing else "N/A"
         logger.info(
             f"Updated best agent for {problem_key}: "
-            f"UID {uid}, score {score:.4f} (prev: {existing.score:.4f if existing else 'N/A'})"
+            f"UID {uid}, score {score:.4f} (prev: {prev_score_str})"
         )
+        
         return True
     
     def get_all_best_scores(self) -> Dict[str, float]:
@@ -217,28 +220,38 @@ def normalized_kendall_distance(rank_a: Sequence[int], rank_b: Sequence[int]) ->
     return discord / total
 
 class RankStability:
-    def __init__(self, n_miners: int, min_window: int = 10):
-        self.n = n_miners
-        self.min_window = min_window # minimum window size
-        self.history = []  # list of rankings (each is list of miner_ids in ranked order)
+    def __init__(self, uids: List[int], min_window: int = 10):
+        """
+        Args:
+            uids: List of actual miner UIDs (e.g., [4, 5, 6, 130])
+            min_window: minimum window size
+        """
+        self.uids = list(uids)
+        self.n = len(self.uids)
+        self.uid_to_idx = {uid: idx for idx, uid in enumerate(self.uids)}
+        self.min_window = min_window
+        self.history = []
 
     def add_ranking(self, ranking: Sequence[int]):
-        """ranking: list/tuple of miner IDs in order from best (0) to worst (n-1)."""
-        assert len(ranking) == self.n
+        """ranking: list/tuple of UIDs in order from best (0) to worst (n-1)."""
+        assert len(ranking) == self.n, f"Expected {self.n} UIDs, got {len(ranking)}"
+        assert all(uid in self.uid_to_idx for uid in ranking), \
+            f"Invalid UIDs in ranking: {set(ranking) - set(self.uids)}"
         self.history.append(list(ranking))
 
     def per_miner_std(self):
         """Return array of std dev of rank positions per miner across history window."""
         if len(self.history) < 2:
             return np.full(self.n, np.inf)
-        # build matrix: T x n of positions (position = index in ranking)
+        
         T = len(self.history)
         pos = np.zeros((T, self.n), dtype=float)
+        
         for t, ranking in enumerate(self.history):
-            # ranking[t] gives miner id at position p, so invert:
-            for p, miner in enumerate(ranking):
-                pos[t, miner] = p
-        # std across time for each miner
+            for rank_position, uid in enumerate(ranking):
+                miner_idx = self.uid_to_idx[uid]
+                pos[t, miner_idx] = rank_position
+        
         return np.std(pos, axis=0, ddof=0)
 
     def aggregate_per_miner_stats(self):
@@ -301,18 +314,14 @@ async def get_subtensor():
 # ---------------- Get Agent ----------------
 async def pull_agent(uid: int) -> Optional[str]:
     try:
-        logger.info(f"Starting to pull agent for UID: {uid} on NETUID: {NETUID}")
         sub = await get_subtensor()
         commit = await sub.get_revealed_commitment(netuid=NETUID, uid=uid)
         g = commit[0][1]
         block = commit[0][0]
         if g.startswith("http") and "api.github.com" not in g:
             g = f"https://api.github.com/gists/{g.rstrip('/').split('/')[-1]}"
-            logger.debug(f"Converted to gist URL: {g}")
         if not g.startswith("http"):
             g = f"https://api.github.com/gists/{g}"
-            logger.debug(f"Added gist prefix: {g}")
-        logger.info(f"Final gist URL: {g}")
         async with aiohttp.ClientSession() as s:
             async with s.get(g) as r:
                 data = await r.json()
@@ -327,7 +336,6 @@ async def pull_agent(uid: int) -> Optional[str]:
         async with aiofiles.open(name, "w", encoding="utf-8") as f:
             await f.write(content or "")
         resolved_path = str(Path(name).resolve())
-        logger.info(f"Successfully pulled agent to: {resolved_path}")
         return resolved_path
     except Exception as e:
         logger.warning(f'Failed pulling agent on UID: {uid} with error: {e}')
@@ -427,13 +435,19 @@ async def evaluate_miner_on_problem(
     timeout: float = 60.0
 ) -> Optional[Dict[str, Any]]:
     try:
-        loop = asyncio.get_running_loop()
-        # container.solve_problem(problem_data, timeout=timeout) is blocking -> run in executor
-        func = partial(container.solve_problem, problem_data, timeout)
-        result = await loop.run_in_executor(None, func)
-        if result is None:
-            logger.debug(f"UID {uid}: No result (timeout or error)")
+        try:
+            test_response = requests.get(f"{container.base_url}/healthz", timeout=5.0)
+        except Exception as e:
             return None
+        
+        loop = asyncio.get_running_loop()
+        func = partial(container.solve_problem, problem_data, timeout)
+
+        result = await loop.run_in_executor(None, func)
+        
+        if result is None:
+            return None
+            
         return result
     except asyncio.CancelledError:
         raise
@@ -445,7 +459,7 @@ async def run_adaptive_evaluation(
     uids: List[int],
     containers: Dict[int, Container],
     agent_paths: Dict[int, str],  # Added: track agent file paths
-    problem_type: str,
+    problem_type_str: str,
     bin_config: ProblemBin,
     config: ProblemTypeConfig,
     rank_window: int = 10,
@@ -464,7 +478,7 @@ async def run_adaptive_evaluation(
     performances: Dict[int, MinerPerformance] = {
         uid: MinerPerformance(uid=uid) for uid in uids
     }
-    stability = RankStability(n_miners=len(uids), min_window=rank_window)
+    stability = RankStability(uids=uids, min_window=rank_window)
 
     round_num = 0
 
@@ -474,15 +488,14 @@ async def run_adaptive_evaluation(
 
         # generate fresh problem each round (so ranking stability measures across problems)
         n_nodes = random.randint(bin_config.min_nodes, bin_config.max_nodes)
-        logger.info(f"[Round {round_num}] Generating {problem_type} problem with {n_nodes} nodes (bin: {bin_config.bin_id})")
-        problem_info = await tools.generate_problem(
-            problem_type=problem_type,
+        logger.info(f"[Round {round_num}] Generating {problem_type_str} problem with {n_nodes} nodes (bin: {bin_config.bin_id})")
+        problem_info = tools.generate_problem(
+            problem_type_str=problem_type_str,
             n_nodes=n_nodes
         )
 
         if "problem_data" not in problem_info:
             logger.error(f"[Round {round_num}] Failed to generate problem; skipping round")
-            # Optional: break or continue. We continue to attempt more rounds.
             continue
 
         problem_data = problem_info["problem_data"]
@@ -492,35 +505,39 @@ async def run_adaptive_evaluation(
         for uid in uids:
             container = containers.get(uid)
             if container is None:
-                # skip container-less uids (score = inf)
                 tasks[uid] = None
                 continue
             tasks[uid] = asyncio.create_task(
-                evaluate_miner_on_problem(container, uid, problem_data, timeout=60.0)
+                evaluate_miner_on_problem(container, uid, problem_data, timeout=300.0)
             )
 
-        # gather results
-        for uid, task in tasks.items():
+                # gather results for ALL uids
+        for uid in uids:  # Iterate over ALL uids, not just tasks.keys()
             HEARTBEAT = time.monotonic()
+            
+            task = tasks.get(uid)
             if task is None:
-                # no container for this uid
+                # No container for this uid
                 performances[uid].add_score(float('inf'))
+                logger.debug(f"[Round {round_num}] UID {uid}: No container, scored inf")
                 continue
+                
             try:
                 result = await task
             except Exception as e:
-                logger.debug(f"UID {uid}: evaluation exception: {e}")
+                logger.debug(f"[Round {round_num}] UID {uid}: evaluation exception: {e}")
                 performances[uid].add_score(float('inf'))
                 continue
 
             if result is None:
                 performances[uid].add_score(float('inf'))
+                logger.debug(f"[Round {round_num}] UID {uid}: No result, scored inf")
                 continue
 
-            # Score the solution (score_solution is async, await it)
+            # Score the solution
             if isinstance(result, dict) and result.get("solution"):
                 try:
-                    score_result = await tools.score_solution(result["solution"], problem_data)
+                    score_result = tools.score_solution(solution=result["solution"], problem_data=problem_data)
                     score = score_result.get("score", float('inf'))
                     performances[uid].add_score(score)
                     perf = performances[uid]
@@ -537,20 +554,24 @@ async def run_adaptive_evaluation(
         # Build ranking this round using mean_score (lower is better).
         # If two miners have identical mean_score, break ties by uid to keep deterministic order.
         sorted_miners = sorted(
-            performances.keys(),
+            uids,
             key=lambda uid: (performances[uid].mean_score, uid)
         )
+
         # `sorted_miners` is list of uids from best -> worst
         stability.add_ranking(sorted_miners)
 
         # Log stability diagnostics
-        agg = stability.aggregate_per_miner_stats()
-        avg_kendall = stability.avg_normalized_kendall()
-        logger.info(
-            f"[Round {round_num}] rank_window={rank_window} mean_std={agg['mean_std']:.4f} "
-            f"median_std={agg['median_std']:.4f} max_std={agg['max_std']:.4f} "
-            f"avg_kendall={avg_kendall:.6f}"
-        )
+        if len(stability.history) >= 2:
+            agg = stability.aggregate_per_miner_stats()
+            avg_kendall = stability.avg_normalized_kendall()
+            logger.info(
+                f"[Round {round_num}] rank_window={rank_window} mean_std={agg['mean_std']:.4f} "
+                f"median_std={agg['median_std']:.4f} max_std={agg['max_std']:.4f} "
+                f"avg_kendall={avg_kendall:.6f}"
+            )
+        else:
+            logger.info(f"[Round {round_num}] rank_window={rank_window} (need 2+ rounds for stability metrics)")
 
         # Check convergence
         if stability.has_converged(
@@ -599,6 +620,7 @@ def calculate_rewards(
     eligible = []
     for uid, perf in performances.items():
         if perf.mean_score == float('inf'):
+            logger.debug(f"UID {uid}: Excluded (inf score - failed/broken agent)")
             continue
         
         if historical_best == float('inf'):
@@ -666,24 +688,35 @@ def validator():
 
     async def _run():
         global HEARTBEAT
-        logger.debug("Starting validator main loop")
 
+        # IMPORTANT: Ensure local sn43 server is running with TSP tools loaded
+        from sn43 import ensure_server_running, load_env
+        
+        # Load the TSP environment which registers tools
+        try:
+            env_spec = load_env("envs/tsp")  # or just "tsp" if using module path
+        except Exception as e:
+            raise
+        
+        # Ensure the server is running
+        ensure_server_running(host="0.0.0.0", port=5005)
+
+        # Issue a token for the validator to call its own tools
+        from sn43 import issue_token
+        validator_token = issue_token(ttl_s=365*24*3600, per_token_limit=200)
+        os.environ["sn43_TOKEN"] = validator_token
+        
         epoch = 0
         
         while True:
             try:
                 epoch += 1
                 HEARTBEAT = time.monotonic()
-                logger.info(f"\n{'='*80}")
-                logger.info(f"STARTING EPOCH {epoch}")
-                logger.info(f"{'='*80}")
 
                 sub = await get_subtensor()
-                logger.debug("Subtensor connection established")
 
                 metagraph = await sub.metagraph(NETUID)
                 uids = [int(uid) for uid in metagraph.uids]
-                logger.debug(f"Loaded metagraph with {len(uids)} UIDs: {uids}")
                 
                 # Initialize containers for all miners
                 containers: Dict[int, Container] = {}
@@ -691,7 +724,6 @@ def validator():
                 
                 for uid in uids:
                     HEARTBEAT = time.monotonic()
-                    logger.info(f"Pulling and initializing container for UID {uid}")
                     
                     gen_tmp_file = await pull_agent(uid)
                     HEARTBEAT = time.monotonic()
@@ -702,15 +734,22 @@ def validator():
                     
                     agent_paths[uid] = gen_tmp_file  # Store path for later
                     
+                    container = None
                     try:
                         HEARTBEAT = time.monotonic()
-                        container = Container(gen_tmp_file)
+                        container = Container(gen_tmp_file, token=validator_token)
                         HEARTBEAT = time.monotonic()
                         containers[uid] = container
-                        logger.info(f"UID {uid}: Container ready")
                     except Exception as e:
-                        logger.warning(f"UID {uid}: Failed to create container - {e}")
+                        # Extra safety: if container object exists but init failed, try destroying
+                        if container is not None and hasattr(container, 'container_id') and container.container_id:
+                            try:
+                                container.destroy()
+                            except Exception as cleanup_e:
+                                logger.error(f"Additional cleanup failed: {cleanup_e}")
+                        
                         HEARTBEAT = time.monotonic()
+                        continue
                 
                 logger.info(f"Initialized {len(containers)} containers")
                 
@@ -718,22 +757,19 @@ def validator():
                 all_rewards: Dict[int, List[float]] = defaultdict(list)
                 
                 for problem_type, config in PROBLEM_CONFIGS.items():
+
                     for bin_config in config.bins:
                         HEARTBEAT = time.monotonic()
-                        
+                        problem_type_str = problem_type.value if isinstance(problem_type, ProblemType) else problem_type
+
                         problem_key = f"{problem_type}_{bin_config.bin_id}"
-                        logger.info(f"\n{'='*60}")
-                        logger.info(f"Evaluating: {problem_key}")
-                        logger.info(f"Nodes: {bin_config.min_nodes}-{bin_config.max_nodes}")
-                        logger.info(f"Improvement threshold: {config.improvement_threshold*100:.1f}%")
-                        logger.info(f"{'='*60}")
                         
                         # Run adaptive evaluation
                         performances, paths = await run_adaptive_evaluation(
-                            uids=list(containers.keys()),
+                            uids=uids,
                             containers=containers,
                             agent_paths=agent_paths,
-                            problem_type=problem_type,
+                            problem_type_str=problem_type_str,
                             bin_config=bin_config,
                             config=config,
                             rank_window=config.rank_window,
@@ -742,6 +778,8 @@ def validator():
                             kendall_threshold=config.kendall_threshold,
                             max_rounds=config.max_rounds
                         )
+
+                        HEARTBEAT = time.monotonic()
                         
                         # Calculate rewards (this will update best agent storage)
                         rewards = calculate_rewards(
@@ -751,10 +789,14 @@ def validator():
                             improvement_threshold=config.improvement_threshold,
                             epoch=epoch
                         )
+
+                        HEARTBEAT = time.monotonic()
                         
                         # Accumulate rewards
                         for uid, reward in rewards.items():
                             all_rewards[uid].append(reward)
+
+                        HEARTBEAT = time.monotonic()
                         
                         # Log results
                         logger.info(f"\nResults for {problem_key}:")
@@ -765,6 +807,8 @@ def validator():
                                 f"UID {uid}: mean={perf.mean_score:.4f}, "
                                 f"runs={perf.run_count}, reward={reward:.1f}"
                             )
+                        
+                        HEARTBEAT = time.monotonic()
                 
                 # Cleanup containers
                 for container in containers.values():
@@ -779,11 +823,6 @@ def validator():
                     if uid in all_rewards and all_rewards[uid]:
                         final_weights[idx] = float(np.mean(all_rewards[uid]))
                 
-                logger.info(f"\n{'='*60}")
-                logger.info(f"EPOCH {epoch} - Final aggregated weights:")
-                for uid, weight in zip(uids, final_weights):
-                    logger.info(f"UID {uid}: {weight:.4f}")
-                logger.info(f"{'='*60}")
                 
                 # Set weights on chain
                 logger.info("Setting weights on chain...")

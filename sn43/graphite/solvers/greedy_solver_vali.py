@@ -18,14 +18,10 @@
 # DEALINGS IN THE SOFTWARE.
 
 from typing import List, Union
-from graphite.solvers.base_solver import BaseSolver
-from graphite.protocol import GraphV2Problem
-from graphite.utils.graph_utils import timeout
+from sn43.graphite.solvers.base_solver import BaseSolver
+from sn43.graphite.protocol import GraphV2Problem
 import numpy as np
-import time
-import asyncio
 import random
-import bittensor as bt
 
 class NearestNeighbourSolverVali(BaseSolver):
     def __init__(self, problem_types:List[GraphV2Problem]=[GraphV2Problem(n_nodes=2, directed=True, problem_type='General TSP')]):

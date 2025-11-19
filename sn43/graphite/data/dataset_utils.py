@@ -19,7 +19,7 @@ from huggingface_hub import hf_hub_download
 from typing import Optional, Any
 
 import time
-from graphite.data.constants import ASIA_MSB_DETAILS, WORLD_TSP_DETAILS, USA_POI_DETAILS
+from sn43.graphite.data.constants import ASIA_MSB_DETAILS, WORLD_TSP_DETAILS, USA_POI_DETAILS
 
 DATASET_DIR = Path(__file__).resolve().parent.parent.parent.joinpath(".dataset")
 

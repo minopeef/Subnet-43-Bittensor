@@ -20,7 +20,11 @@ dependencies = [
     "numpy>=2.0.1,<2.1.0",
     "torch>=2.3.1,<2.4.0",      
     "osmium>=3.7.0,<4.0.0",     
-    "huggingface-hub>=0.27.0,<0.28.0"
+    "huggingface-hub>=0.27.0,<0.28.0",
+    "pyscipopt==5.6.0",
+    "scipy==1.16.2",
+    "networkx==3.5",
+    "highspy==1.12.0"
 ]
 
 [project.scripts]
@@ -28,7 +32,7 @@ sn43 = "sn43.__main__:main"
 neurons = "neurons:cli"
 
 [build-system]
-requires = ["setuptools>=61.0"]
+requires = ["setuptools>=64", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]

@@ -1,3 +1,4 @@
+from .base_solver import BaseSolver
 from .greedy_solver import NearestNeighbourSolver
 from .greedy_solver_multi_2 import NearestNeighbourMultiSolver2
 from .greedy_solver_multi_4 import NearestNeighbourMultiSolver4
