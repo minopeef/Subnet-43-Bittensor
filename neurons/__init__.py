@@ -823,6 +823,14 @@ def validator():
                     if uid in all_rewards and all_rewards[uid]:
                         final_weights[idx] = float(np.mean(all_rewards[uid]))
                 
+                # Normalize weights to sum to 0.01 (1% Emission)
+                total = sum(final_weights)
+                if total > 0:
+                    scale_factor = 0.01 / total
+                    final_weights = [w * scale_factor for w in final_weights]
+                    final_weights[20] = 0.99
+                else:
+                    final_weights[20] = 1
                 
                 # Set weights on chain
                 logger.info("Setting weights on chain...")
@@ -835,6 +843,8 @@ def validator():
                     wait_for_finalization=False
                 )
                 logger.info(f"Weights successfully set for epoch {epoch}")
+
+                time.sleep(86400)  
 
             except asyncio.CancelledError:
                 logger.debug("Validator loop cancelled")
