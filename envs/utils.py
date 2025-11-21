@@ -9,10 +9,10 @@ from enum import Enum
 class ProblemType(Enum):
     TSP = "Metric TSP"
     MTSP = "Metric mTSP"
-    MDMTSP = "Metric mDmTSP"
-    CMDMTSP = "Metric cmDmTSP"
-    RCMDMTSP = "Metric rcmDmTSP"
-    RCMDMTSPTW = "Metric rcmDmTSPTW"
+    MDMTSP = "Metric mTSP"
+    CMDMTSP = "Metric cmTSP"
+    RCMDMTSP = "Metric cmTSP"
+    RCMDMTSPTW = "Metric cmTSPTW"
 
     @classmethod
     def from_value(cls, value: str) -> 'ProblemType':

@@ -28,7 +28,6 @@ RUN uv venv --python python3 $VENV_DIR \
 # Copy your sn43 code
 COPY sn43 /app/sn43
 COPY envs /app/envs
-COPY scripts /app/scripts
 
 # Install the package
 ENV VIRTUAL_ENV=$VENV_DIR
