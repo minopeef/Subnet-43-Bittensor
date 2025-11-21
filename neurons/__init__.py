@@ -31,6 +31,9 @@ NETUID = 43
 BEST_AGENTS_DIR = Path("best_agents")
 BEST_AGENTS_DIR.mkdir(exist_ok=True)
 
+VALIDATION_PERIOD = 86400
+SET_WEIGHTS_PERIOD = 360
+
 @dataclass
 class BestAgentRecord:
     """Record of the best agent for a problem type/bin."""
@@ -708,151 +711,169 @@ def validator():
         
         epoch = 0
         
+        last_validated = 0
+        last_set_weights = 0
+
         while True:
-            try:
-                epoch += 1
-                HEARTBEAT = time.monotonic()
-
-                sub = await get_subtensor()
-
-                metagraph = await sub.metagraph(NETUID)
-                uids = [int(uid) for uid in metagraph.uids]
-                
-                # Initialize containers for all miners
-                containers: Dict[int, Container] = {}
-                agent_paths: Dict[int, str] = {}
-                
-                for uid in uids:
-                    HEARTBEAT = time.monotonic()
-                    
-                    gen_tmp_file = await pull_agent(uid)
+            if time.time() - last_validated > VALIDATION_PERIOD:
+                try:
+                    epoch += 1
                     HEARTBEAT = time.monotonic()
 
-                    if gen_tmp_file is None:
-                        logger.warning(f"Could not pull agent for UID {uid}, skipping")
-                        continue
+                    sub = await get_subtensor()
+
+                    metagraph = await sub.metagraph(NETUID)
+                    uids = [int(uid) for uid in metagraph.uids]
                     
-                    agent_paths[uid] = gen_tmp_file  # Store path for later
+                    # Initialize containers for all miners
+                    containers: Dict[int, Container] = {}
+                    agent_paths: Dict[int, str] = {}
                     
-                    container = None
-                    try:
-                        HEARTBEAT = time.monotonic()
-                        container = Container(gen_tmp_file, token=validator_token)
-                        HEARTBEAT = time.monotonic()
-                        containers[uid] = container
-                    except Exception as e:
-                        # Extra safety: if container object exists but init failed, try destroying
-                        if container is not None and hasattr(container, 'container_id') and container.container_id:
-                            try:
-                                container.destroy()
-                            except Exception as cleanup_e:
-                                logger.error(f"Additional cleanup failed: {cleanup_e}")
-                        
-                        HEARTBEAT = time.monotonic()
-                        continue
-                
-                logger.info(f"Initialized {len(containers)} containers")
-                
-                # Iterate through all problem types and bins
-                all_rewards: Dict[int, List[float]] = defaultdict(list)
-                
-                for problem_type, config in PROBLEM_CONFIGS.items():
-
-                    for bin_config in config.bins:
-                        HEARTBEAT = time.monotonic()
-                        problem_type_str = problem_type.value if isinstance(problem_type, ProblemType) else problem_type
-
-                        problem_key = f"{problem_type}_{bin_config.bin_id}"
-                        
-                        # Run adaptive evaluation
-                        performances, paths = await run_adaptive_evaluation(
-                            uids=uids,
-                            containers=containers,
-                            agent_paths=agent_paths,
-                            problem_type_str=problem_type_str,
-                            bin_config=bin_config,
-                            config=config,
-                            rank_window=config.rank_window,
-                            mean_std_threshold=config.mean_std_threshold,
-                            max_std_threshold=config.max_std_threshold,
-                            kendall_threshold=config.kendall_threshold,
-                            max_rounds=config.max_rounds
-                        )
-
+                    for uid in uids:
                         HEARTBEAT = time.monotonic()
                         
-                        # Calculate rewards (this will update best agent storage)
-                        rewards = calculate_rewards(
-                            performances=performances,
-                            agent_paths=paths,
-                            problem_key=problem_key,
-                            improvement_threshold=config.improvement_threshold,
-                            epoch=epoch
-                        )
-
+                        gen_tmp_file = await pull_agent(uid)
                         HEARTBEAT = time.monotonic()
-                        
-                        # Accumulate rewards
-                        for uid, reward in rewards.items():
-                            all_rewards[uid].append(reward)
 
-                        HEARTBEAT = time.monotonic()
+                        if gen_tmp_file is None:
+                            logger.warning(f"Could not pull agent for UID {uid}, skipping")
+                            continue
                         
-                        # Log results
-                        logger.info(f"\nResults for {problem_key}:")
-                        for uid in sorted(performances.keys()):
-                            perf = performances[uid]
-                            reward = rewards.get(uid, 0.0)
-                            logger.info(
-                                f"UID {uid}: mean={perf.mean_score:.4f}, "
-                                f"runs={perf.run_count}, reward={reward:.1f}"
+                        agent_paths[uid] = gen_tmp_file  # Store path for later
+                        
+                        container = None
+                        try:
+                            HEARTBEAT = time.monotonic()
+                            container = Container(gen_tmp_file, token=validator_token)
+                            HEARTBEAT = time.monotonic()
+                            containers[uid] = container
+                        except Exception as e:
+                            # Extra safety: if container object exists but init failed, try destroying
+                            if container is not None and hasattr(container, 'container_id') and container.container_id:
+                                try:
+                                    container.destroy()
+                                except Exception as cleanup_e:
+                                    logger.error(f"Additional cleanup failed: {cleanup_e}")
+                            
+                            HEARTBEAT = time.monotonic()
+                            continue
+                    
+                    logger.info(f"Initialized {len(containers)} containers")
+                    
+                    # Iterate through all problem types and bins
+                    all_rewards: Dict[int, List[float]] = defaultdict(list)
+                    
+                    for problem_type, config in PROBLEM_CONFIGS.items():
+
+                        for bin_config in config.bins:
+                            HEARTBEAT = time.monotonic()
+                            problem_type_str = problem_type.value if isinstance(problem_type, ProblemType) else problem_type
+
+                            problem_key = f"{problem_type}_{bin_config.bin_id}"
+                            
+                            # Run adaptive evaluation
+                            performances, paths = await run_adaptive_evaluation(
+                                uids=uids,
+                                containers=containers,
+                                agent_paths=agent_paths,
+                                problem_type_str=problem_type_str,
+                                bin_config=bin_config,
+                                config=config,
+                                rank_window=config.rank_window,
+                                mean_std_threshold=config.mean_std_threshold,
+                                max_std_threshold=config.max_std_threshold,
+                                kendall_threshold=config.kendall_threshold,
+                                max_rounds=config.max_rounds
                             )
-                        
-                        HEARTBEAT = time.monotonic()
-                
-                # Cleanup containers
-                for container in containers.values():
-                    try:
-                        container.destroy()
-                    except Exception as e:
-                        logger.warning(f"Failed to destroy container: {e}")
-                
-                # Aggregate rewards (average across all problem types/bins)
-                final_weights = [0.0] * len(uids)
-                for idx, uid in enumerate(uids):
-                    if uid in all_rewards and all_rewards[uid]:
-                        final_weights[idx] = float(np.mean(all_rewards[uid]))
-                
-                # Normalize weights to sum to 0.01 (1% Emission)
-                total = sum(final_weights)
-                if total > 0:
-                    scale_factor = 0.01 / total
-                    final_weights = [w * scale_factor for w in final_weights]
-                    final_weights[20] = 0.99
-                else:
-                    final_weights[20] = 1
-                
-                # Set weights on chain
-                logger.info("Setting weights on chain...")
-                await sub.set_weights(
-                    wallet=wallet,
-                    netuid=NETUID,
-                    weights=final_weights,
-                    uids=uids,
-                    wait_for_inclusion=False,
-                    wait_for_finalization=False
-                )
-                logger.info(f"Weights successfully set for epoch {epoch}")
 
-                time.sleep(86400)  
+                            HEARTBEAT = time.monotonic()
+                            
+                            # Calculate rewards (this will update best agent storage)
+                            rewards = calculate_rewards(
+                                performances=performances,
+                                agent_paths=paths,
+                                problem_key=problem_key,
+                                improvement_threshold=config.improvement_threshold,
+                                epoch=epoch
+                            )
 
-            except asyncio.CancelledError:
-                logger.debug("Validator loop cancelled")
-                break
-            except Exception as e:
-                traceback.print_exc()
-                logger.info(f"Runner error: {e}; retrying...")
-                await asyncio.sleep(5)
+                            HEARTBEAT = time.monotonic()
+                            
+                            # Accumulate rewards
+                            for uid, reward in rewards.items():
+                                all_rewards[uid].append(reward)
+
+                            HEARTBEAT = time.monotonic()
+                            
+                            # Log results
+                            logger.info(f"\nResults for {problem_key}:")
+                            for uid in sorted(performances.keys()):
+                                perf = performances[uid]
+                                reward = rewards.get(uid, 0.0)
+                                logger.info(
+                                    f"UID {uid}: mean={perf.mean_score:.4f}, "
+                                    f"runs={perf.run_count}, reward={reward:.1f}"
+                                )
+                            
+                            HEARTBEAT = time.monotonic()
+                    
+                    # Cleanup containers
+                    for container in containers.values():
+                        try:
+                            container.destroy()
+                        except Exception as e:
+                            logger.warning(f"Failed to destroy container: {e}")
+                    
+                    # Aggregate rewards (average across all problem types/bins)
+                    final_weights = [0.0] * len(uids)
+                    for idx, uid in enumerate(uids):
+                        if uid in all_rewards and all_rewards[uid]:
+                            final_weights[idx] = float(np.mean(all_rewards[uid]))
+                    
+                    # Normalize weights to sum to 0.01 (1% Emission)
+                    total = sum(final_weights)
+                    if total > 0:
+                        scale_factor = 0.01 / total
+                        final_weights = [w * scale_factor for w in final_weights]
+                        final_weights[20] = 0.99
+                    else:
+                        final_weights[20] = 1
+                    
+                    # Set weights on chain
+                    logger.info("Setting weights on chain...")
+                    await sub.set_weights(
+                        wallet=wallet,
+                        netuid=NETUID,
+                        weights=final_weights,
+                        uids=uids,
+                        wait_for_inclusion=False,
+                        wait_for_finalization=False
+                    )
+                    logger.info(f"Weights successfully set for epoch {epoch}")
+
+                    last_validated = time.time()  
+                    last_set_weights = time.time()
+
+                except asyncio.CancelledError:
+                    logger.debug("Validator loop cancelled")
+                    break
+                except Exception as e:
+                    traceback.print_exc()
+                    logger.info(f"Runner error: {e}; retrying...")
+                    await asyncio.sleep(5)
+            if time.time() - last_set_weights > SET_WEIGHTS_PERIOD:
+                try:
+                    await sub.set_weights(
+                            wallet=wallet,
+                            netuid=NETUID,
+                            weights=final_weights,
+                            uids=uids,
+                            wait_for_inclusion=False,
+                            wait_for_finalization=False
+                        )
+                except:
+                    print("Failed to set weights periodically")
+                    pass
 
     async def main():
         logger.debug("Starting validator with watchdog")
