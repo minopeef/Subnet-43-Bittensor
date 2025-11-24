@@ -386,7 +386,7 @@ def _healthz_local_ok(host: str = "127.0.0.1", port: int = 5005, timeout: float 
     except Exception:
         return False
 
-def ensure_server_running(*, host: str = "0.0.0.0", port: int = 5005, startup_timeout_s: float = 10.0) -> None:
+def ensure_server_running(*, host: str = "0.0.0.0", port: int = 5005, startup_timeout_s: float = 60.0) -> None:
     if _healthz_local_ok(port=port):
         return
     with _SERVER_BOOT_LOCK:

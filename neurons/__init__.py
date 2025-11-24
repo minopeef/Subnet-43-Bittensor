@@ -319,8 +319,9 @@ async def pull_agent(uid: int) -> Optional[str]:
     try:
         sub = await get_subtensor()
         commit = await sub.get_revealed_commitment(netuid=NETUID, uid=uid)
-        g = commit[0][1]
-        block = commit[0][0]
+        latest_commit = commit[-1] 
+        block = latest_commit[0]
+        g = latest_commit[1]
         if g.startswith("http") and "api.github.com" not in g:
             g = f"https://api.github.com/gists/{g.rstrip('/').split('/')[-1]}"
         if not g.startswith("http"):
