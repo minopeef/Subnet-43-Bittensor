@@ -917,7 +917,7 @@ def validator():
                     traceback.print_exc()
                     logger.info(f"Runner error: {e}; retrying...")
                     await asyncio.sleep(5)
-            if time.time() - last_set_weights > SET_WEIGHTS_PERIOD:
+            if time.time() > last_set_weights:
                 for uid in uids:
                     HEARTBEAT = time.monotonic()
                     
