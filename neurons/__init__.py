@@ -608,16 +608,9 @@ async def run_adaptive_evaluation(
 
 def next_half_hour_unix():
     now = int(time.time())
-    # Seconds since start of current hour
     sec_into_hour = now % 3600
     target = 1800  # 30 minutes
-
-    if sec_into_hour < target:
-        # Next 30-min mark this hour
-        return now - sec_into_hour + target
-    else:
-        # Already passed 30-min mark → next hour
-        return now - sec_into_hour + 3600 + target
+    return now - sec_into_hour + target
 
 def calculate_rewards(
     performances: Dict[int, MinerPerformance],
