@@ -703,6 +703,25 @@ def calculate_rewards(
 
     return rewards
 
+async def cleanup_all_containers():
+    """Clean up all existing sn43-agent containers before starting new validation"""
+    try:
+        import subprocess
+        logger.info("Cleaning up existing containers...")
+        result = subprocess.run(
+            ["docker", "ps", "-a", "--filter", "name=sn43-agent", "--format", "{{.ID}}"],
+            capture_output=True,
+            text=True
+        )
+        container_ids = result.stdout.strip().split('\n')
+        container_ids = [cid for cid in container_ids if cid]
+        
+        if container_ids:
+            subprocess.run(["docker", "rm", "-f"] + container_ids, check=True)
+            logger.info(f"Cleaned up {len(container_ids)} containers")
+    except Exception as e:
+        logger.error(f"Failed to cleanup containers: {e}")
+
 # ---------------- Main Validator ----------------
 @cli.command("validator")
 def validator():
@@ -740,13 +759,15 @@ def validator():
         epoch = 0
         
         last_validated = 0
-        last_set_weights = next_half_hour_ts()
+        last_set_weights = next_half_hour_unix()
 
         while True:
             if time.time() - last_validated > VALIDATION_PERIOD:
                 try:
                     epoch += 1
                     HEARTBEAT = time.monotonic()
+
+                    await cleanup_all_containers()
 
                     sub = await get_subtensor()
 
@@ -859,6 +880,7 @@ def validator():
                             HEARTBEAT = time.monotonic()
                     
                     # Cleanup containers
+                    await cleanup_all_containers()
                     for container in containers.values():
                         try:
                             container.destroy()
