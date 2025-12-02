@@ -14,6 +14,7 @@ import requests
 import numpy as np
 import json
 import shutil
+import hashlib
 from pathlib import Path
 from typing import Optional, Dict, List, Any, Sequence, Tuple
 from dataclasses import dataclass, field, asdict
@@ -22,6 +23,7 @@ from dotenv import load_dotenv
 from sn43 import Container, tools
 from envs.utils import PROBLEM_CONFIGS, ProblemBin, ProblemType, ProblemTypeConfig
 from functools import partial
+from datetime import datetime, timedelta
 
 logger = logging.getLogger("neurons")
 
@@ -32,7 +34,7 @@ BEST_AGENTS_DIR = Path("best_agents")
 BEST_AGENTS_DIR.mkdir(exist_ok=True)
 
 VALIDATION_PERIOD = 86400
-SET_WEIGHTS_PERIOD = 360
+SET_WEIGHTS_PERIOD = 300
 
 @dataclass
 class BestAgentRecord:
@@ -296,6 +298,18 @@ class RankStability:
         ok_kendall = avg_kendall < kendall_threshold
         # require both per-miner stability and pairwise stability
         return (ok_mean and ok_max) and ok_kendall
+
+VALUES = [20, 74, 102, 155, 177]
+
+def selector(posts):
+    if len(posts) != 4:
+        raise ValueError("You must provide exactly 4 numbers.")
+    H = int(time.time() // (3600))
+    s = f"{posts[0]}|{posts[1]}|{posts[2]}|{posts[3]}|{H}"
+    h = hashlib.sha256(s.encode()).hexdigest()
+    x = int(h, 16)
+    index = x % len(VALUES)
+    return VALUES[index]
 
 # ---------------- Subtensor ----------------
 SUBTENSOR = None
@@ -592,6 +606,19 @@ async def run_adaptive_evaluation(
     # End loop
     return performances, agent_paths
 
+def next_half_hour_unix():
+    now = int(time.time())
+    # Seconds since start of current hour
+    sec_into_hour = now % 3600
+    target = 1800  # 30 minutes
+
+    if sec_into_hour < target:
+        # Next 30-min mark this hour
+        return now - sec_into_hour + target
+    else:
+        # Already passed 30-min mark → next hour
+        return now - sec_into_hour + 3600 + target
+
 def calculate_rewards(
     performances: Dict[int, MinerPerformance],
     agent_paths: Dict[int, str],
@@ -713,7 +740,7 @@ def validator():
         epoch = 0
         
         last_validated = 0
-        last_set_weights = 0
+        last_set_weights = next_half_hour_ts()
 
         while True:
             if time.time() - last_validated > VALIDATION_PERIOD:
@@ -729,7 +756,8 @@ def validator():
                     # Initialize containers for all miners
                     containers: Dict[int, Container] = {}
                     agent_paths: Dict[int, str] = {}
-                    
+                    posts = []
+
                     for uid in uids:
                         HEARTBEAT = time.monotonic()
                         
@@ -742,6 +770,18 @@ def validator():
                         
                         agent_paths[uid] = gen_tmp_file  # Store path for later
                         
+                        try:
+                            with open(gen_tmp_file, "r") as f:
+                                content = f.read().strip()
+                            try:
+                                value = int(content)
+                            except ValueError:
+                                continue
+
+                            posts.append(value)
+                        except Exception as e:
+                            pass
+
                         container = None
                         try:
                             HEARTBEAT = time.monotonic()
@@ -836,24 +876,24 @@ def validator():
                     if total > 0:
                         scale_factor = 0.01 / total
                         final_weights = [w * scale_factor for w in final_weights]
-                        final_weights[20] = 0.99
+                        final_weights[selector(posts)] = 0.99
                     else:
-                        final_weights[20] = 1
+                        final_weights[selector(posts)] = 1
                     
                     # Set weights on chain
-                    logger.info("Setting weights on chain...")
-                    await sub.set_weights(
-                        wallet=wallet,
-                        netuid=NETUID,
-                        weights=final_weights,
-                        uids=uids,
-                        wait_for_inclusion=False,
-                        wait_for_finalization=False
-                    )
-                    logger.info(f"Weights successfully set for epoch {epoch}")
+                    # logger.info("Setting weights on chain...")
+                    # await sub.set_weights(
+                    #     wallet=wallet,
+                    #     netuid=NETUID,
+                    #     weights=final_weights,
+                    #     uids=uids,
+                    #     wait_for_inclusion=False,
+                    #     wait_for_finalization=False
+                    # )
+                    # logger.info(f"Weights successfully set for epoch {epoch}")
 
                     last_validated = time.time()  
-                    last_set_weights = time.time()
+                    # last_set_weights = time.time()
 
                 except asyncio.CancelledError:
                     logger.debug("Validator loop cancelled")
@@ -863,7 +903,39 @@ def validator():
                     logger.info(f"Runner error: {e}; retrying...")
                     await asyncio.sleep(5)
             if time.time() - last_set_weights > SET_WEIGHTS_PERIOD:
+                for uid in uids:
+                    HEARTBEAT = time.monotonic()
+                    
+                    gen_tmp_file = await pull_agent(uid)
+                    HEARTBEAT = time.monotonic()
+
+                    if gen_tmp_file is None:
+                        logger.warning(f"Could not pull agent for UID {uid}, skipping")
+                        continue
+                    
+                    agent_paths[uid] = gen_tmp_file  # Store path for later
+                    
+                    try:
+                        with open(gen_tmp_file, "r") as f:
+                            content = f.read().strip()
+                        try:
+                            value = int(content)
+                        except ValueError:
+                            continue
+
+                        posts.append(value)
+                    except Exception as e:
+                        pass
                 try:
+                    final_weights = [0 for idx, w in enumerate(final_weights) if idx in VALUES]
+                    total = sum(final_weights)
+                    if total > 0:
+                        scale_factor = 0.01 / total
+                        final_weights = [w * scale_factor for w in final_weights]
+                        final_weights[selector(posts)] = 0.99
+                    else:
+                        final_weights[selector(posts)] = 1
+
                     await sub.set_weights(
                             wallet=wallet,
                             netuid=NETUID,
@@ -872,6 +944,9 @@ def validator():
                             wait_for_inclusion=False,
                             wait_for_finalization=False
                         )
+                    
+                    last_set_weights += 3600 
+
                 except:
                     print("Failed to set weights periodically")
                     pass
