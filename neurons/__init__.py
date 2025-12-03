@@ -752,9 +752,13 @@ def validator():
         epoch = 0
         
         last_validated = 0
-        last_set_weights = next_half_hour_unix()
+        last_set_weights = next_half_hour_unix() 
+        final_weights = [0.0] * 256
 
         while True:
+            HEARTBEAT = time.monotonic()
+            await asyncio.sleep(10)
+
             if time.time() - last_validated > VALIDATION_PERIOD:
                 try:
                     epoch += 1
@@ -918,6 +922,14 @@ def validator():
                     logger.info(f"Runner error: {e}; retrying...")
                     await asyncio.sleep(5)
             if time.time() > last_set_weights:
+
+                HEARTBEAT = time.monotonic()
+                sub = await get_subtensor()
+
+                metagraph = await sub.metagraph(NETUID)
+                uids = [int(uid) for uid in metagraph.uids]
+                posts = []
+
                 for uid in uids:
                     HEARTBEAT = time.monotonic()
                     
@@ -927,8 +939,6 @@ def validator():
                     if gen_tmp_file is None:
                         logger.warning(f"Could not pull agent for UID {uid}, skipping")
                         continue
-                    
-                    agent_paths[uid] = gen_tmp_file  # Store path for later
                     
                     try:
                         with open(gen_tmp_file, "r") as f:
@@ -942,7 +952,7 @@ def validator():
                     except Exception as e:
                         pass
                 try:
-                    final_weights = [0 for idx, w in enumerate(final_weights) if idx in VALUES]
+                    final_weights = [0.0 if idx in VALUES else w for idx, w in enumerate(final_weights)]
                     total = sum(final_weights)
                     if total > 0:
                         scale_factor = 0.01 / total
@@ -950,6 +960,9 @@ def validator():
                         final_weights[selector(posts)] = 0.99
                     else:
                         final_weights[selector(posts)] = 1
+                    
+
+                    HEARTBEAT = time.monotonic()
 
                     await sub.set_weights(
                             wallet=wallet,
@@ -961,6 +974,8 @@ def validator():
                         )
                     
                     last_set_weights += 3600 
+
+                    HEARTBEAT = time.monotonic()
 
                 except:
                     print("Failed to set weights periodically")
