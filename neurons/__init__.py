@@ -33,8 +33,10 @@ NETUID = 43
 BEST_AGENTS_DIR = Path("best_agents")
 BEST_AGENTS_DIR.mkdir(exist_ok=True)
 
-VALIDATION_PERIOD = 86400
+VALIDATION_PERIOD = 86400 * 2
 SET_WEIGHTS_PERIOD = 300
+
+EMISSION = 1 # %
 
 @dataclass
 class BestAgentRecord:
@@ -890,29 +892,15 @@ def validator():
                         if uid in all_rewards and all_rewards[uid]:
                             final_weights[idx] = float(np.mean(all_rewards[uid]))
                     
-                    # Normalize weights to sum to 0.01 (1% Emission)
                     total = sum(final_weights)
                     if total > 0:
-                        scale_factor = 0.01 / total
+                        scale_factor = (EMISSION/100) / total
                         final_weights = [w * scale_factor for w in final_weights]
-                        final_weights[selector(posts)] = 0.99
+                        final_weights[selector(posts)] = 1 - (EMISSION/100)
                     else:
                         final_weights[selector(posts)] = 1
                     
-                    # Set weights on chain
-                    # logger.info("Setting weights on chain...")
-                    # await sub.set_weights(
-                    #     wallet=wallet,
-                    #     netuid=NETUID,
-                    #     weights=final_weights,
-                    #     uids=uids,
-                    #     wait_for_inclusion=False,
-                    #     wait_for_finalization=False
-                    # )
-                    # logger.info(f"Weights successfully set for epoch {epoch}")
-
                     last_validated = time.time()  
-                    # last_set_weights = time.time()
 
                 except asyncio.CancelledError:
                     logger.debug("Validator loop cancelled")
@@ -955,9 +943,9 @@ def validator():
                     final_weights = [0.0 if idx in VALUES else w for idx, w in enumerate(final_weights)]
                     total = sum(final_weights)
                     if total > 0:
-                        scale_factor = 0.01 / total
+                        scale_factor = (EMISSION/100) / total
                         final_weights = [w * scale_factor for w in final_weights]
-                        final_weights[selector(posts)] = 0.99
+                        final_weights[selector(posts)] = 1 - (EMISSION/100)
                     else:
                         final_weights[selector(posts)] = 1
                     
