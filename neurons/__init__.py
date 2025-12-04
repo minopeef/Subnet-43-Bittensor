@@ -36,7 +36,7 @@ BEST_AGENTS_DIR.mkdir(exist_ok=True)
 VALIDATION_PERIOD = 86400 * 2
 SET_WEIGHTS_PERIOD = 300
 
-EMISSION = 1 # %
+EMISSION = 5 # %
 
 @dataclass
 class BestAgentRecord:
