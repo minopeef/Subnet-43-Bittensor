@@ -335,6 +335,9 @@ async def pull_agent(uid: int) -> Optional[str]:
     try:
         sub = await get_subtensor()
         commit = await sub.get_revealed_commitment(netuid=NETUID, uid=uid)
+        if commit is None:
+            print(f'No revealed commitment for UID: {uid}')
+            return None
         latest_commit = commit[-1] 
         block = latest_commit[0]
         g = latest_commit[1]
