@@ -779,6 +779,7 @@ def validator():
                     posts = []
 
                     for uid in uids:
+                        await asyncio.sleep(10)
                         HEARTBEAT = time.monotonic()
                         
                         gen_tmp_file = await pull_agent(uid)
@@ -918,7 +919,7 @@ def validator():
                 uids = [int(uid) for uid in metagraph.uids]
                 posts = []
 
-                for uid in uids:
+                for uid in VALUES:
                     HEARTBEAT = time.monotonic()
                     
                     gen_tmp_file = await pull_agent(uid)
