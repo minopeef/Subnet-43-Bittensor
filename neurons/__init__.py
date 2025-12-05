@@ -759,7 +759,7 @@ def validator():
 
         while True:
             HEARTBEAT = time.monotonic()
-            await asyncio.sleep(10)
+            await asyncio.sleep(10*60)
 
             if time.time() - last_validated > VALIDATION_PERIOD:
                 try:
