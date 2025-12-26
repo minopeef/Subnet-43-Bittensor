@@ -797,11 +797,7 @@ def validator():
                         try:
                             with open(gen_tmp_file, "r") as f:
                                 content = f.read().strip()
-                            try:
-                                value = int(content)
-                            except ValueError:
-                                continue
-
+                            value = int(content)
                             posts.append(value)
                         except Exception as e:
                             pass
