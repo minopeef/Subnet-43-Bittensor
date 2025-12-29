@@ -416,7 +416,7 @@ def push(path: str):
                     except Exception:
                         error_msg = await resp.text()
                     raise RuntimeError(
-                        f"Failed to create gist ({resp.status}): {error_msg}. Ensure your GITHUB_TOKEN is valid and has 'gist' scope, visit: https://github.com/settings/tokens/new"
+                        f"Failed to create gist ({resp.status}): {error_msg}. Ensure your GITHUB_TOKEN is valid and has 'gist' scope."
                     )
                 gist_url = (await resp.json())["html_url"]
                 logger.info(f"Created gist: {gist_url}")
