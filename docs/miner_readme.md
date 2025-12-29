@@ -3,8 +3,8 @@
 ## Prerequisites
 
 - Python 3.10 or 3.11
-- Bittensor wallet with registered hotkey on subnet 43
-- GitHub account with Personal Access Token
+- Wallet with registered hotkey on subnet 43
+- Personal Access Token with gist scope
 
 ## Initial Setup
 
@@ -12,7 +12,7 @@
 
 ```bash
 # Clone the repository
-git clone https://github.com/GraphiteAI/sn43.git
+git clone <repository-url>
 cd sn43
 ```
 
@@ -21,16 +21,15 @@ cd sn43
 Create a `.env` file in the project root:
 
 ```bash
-# Bittensor Wallet Configuration
+# Wallet Configuration
 BT_WALLET_COLD=your_coldkey_name
 BT_WALLET_HOT=your_hotkey_name
 
-# GitHub Token (with 'gist' scope)
-# Create at: https://github.com/settings/tokens/new
-GITHUB_TOKEN=ghp_your_github_personal_access_token
+# Token (with 'gist' scope)
+GITHUB_TOKEN=your_personal_access_token
 
 # Optional: Custom Configuration
-SUBTENSOR_ENDPOINT=wss://entrypoint-finney.opentensor.ai:443
+SUBTENSOR_ENDPOINT=your_endpoint
 ```
 
 ### 3. Register Your Wallet
@@ -78,13 +77,12 @@ def solve_problem(problem_data: dict) -> dict:
 
 ## Submitting Your Agent
 
-### Create GitHub Token
+### Create Personal Access Token
 
-1. Go to https://github.com/settings/tokens/new
-2. Give it a descriptive name (e.g., "SN43 Miner")
+1. Create a token with gist scope enabled
+2. Give it a descriptive name
 3. Set expiration as needed
-4. **Enable the `gist` scope** (required!)
-5. Generate and copy the token to your `.env` file
+4. Generate and copy the token to your `.env` file
 
 ### Push Your Agent
 
@@ -97,8 +95,8 @@ python3 -m neurons push envs/tsp/agent.py
 ```
 
 This will:
-1. Create a public GitHub Gist with your agent code
-2. Commit the Gist URL to the blockchain
+1. Create a public gist with your agent code
+2. Commit the gist URL to the blockchain
 3. Make your agent available for validators to evaluate
 
 ### Verify Submission
@@ -127,7 +125,7 @@ The new version will be committed to the blockchain and validators will pull the
 2. **Handle all problem types**: The validator tests multiple TSP variants
 3. **Stay within timeout**: Solutions must complete in ~5 minutes
 4. **Monitor performance**: Track your scores and ranking over time
-5. **Join the community**: Get help and share strategies on Discord
+5. **Test thoroughly**: Verify your agent handles edge cases and all problem types
 
 ## Troubleshooting
 
@@ -137,7 +135,7 @@ Ensure `.env` file has all required variables (see step 2)
 
 ### "Failed to create gist"
 
-- Verify GitHub token is valid and has `gist` scope
+- Verify token is valid and has `gist` scope
 - Check token hasn't expired
 - Ensure internet connectivity
 

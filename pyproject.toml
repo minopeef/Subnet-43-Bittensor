@@ -1,7 +1,7 @@
 [project]
 name = "sn43"
 version = "0.1.0"
-description = "Add your description here"
+description = "TSP Solving Network - Decentralized network for solving Traveling Salesman Problem variants"
 readme = "README.md"
 requires-python = ">=3.11,<3.12"  # keep it compatible with Python 3.11
 dependencies = [

@@ -17,7 +17,7 @@
 
 - Docker and Docker Compose
 - Python 3.10 or 3.11
-- Bittensor wallet with registered validator hotkey
+- Wallet with registered validator hotkey
 
 ## Initial Setup
 
@@ -34,12 +34,12 @@ cd sn43
 Create a `.env` file in the project root:
 
 ```bash
-# Bittensor Wallet Configuration
+# Wallet Configuration
 BT_WALLET_COLD=your_coldkey_name
 BT_WALLET_HOT=your_validator_hotkey_name
 
 # Optional: Custom Configuration
-SUBTENSOR_ENDPOINT=wss://entrypoint-finney.opentensor.ai:443
+SUBTENSOR_ENDPOINT=your_endpoint
 ```
 
 ### 3. Register as Validator

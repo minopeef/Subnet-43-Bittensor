@@ -1,10 +1,10 @@
-# SN43 - Graphite Subnet
+# SN43 - TSP Solving Network
 
-A Bittensor subnet focused on solving Traveling Salesman Problem (TSP) variants using distributed agents. Miners submit solving algorithms that are evaluated by validators on various TSP problem types and sizes.
+A decentralized network for solving Traveling Salesman Problem (TSP) variants using distributed agents. Miners submit solving algorithms that are evaluated by validators on various TSP problem types and sizes.
 
 ## Overview
 
-Subnet 43 is a decentralized network where miners compete to solve TSP problems efficiently. Validators evaluate miner solutions across multiple problem types and sizes, rewarding the best performers based on solution quality and consistency.
+This network enables miners to compete in solving TSP problems efficiently. Validators evaluate miner solutions across multiple problem types and sizes, rewarding the best performers based on solution quality and consistency.
 
 ## Project Structure
 
@@ -20,50 +20,52 @@ Subnet 43 is a decentralized network where miners compete to solve TSP problems 
 
 - Python 3.11
 - Docker and Docker Compose
-- Bittensor wallet with registered hotkey on subnet 43
-- GitHub Personal Access Token (for miners, with gist scope)
+- Wallet with registered hotkey on subnet 43
+- Personal Access Token with gist scope (for miners)
 
-## Installation
+## Quick Start
+
+### Installation
 
 1. Clone the repository
 2. Install dependencies using uv or pip
 3. Configure environment variables in `.env` file
 4. Register your wallet on subnet 43
 
-## Configuration
+### Configuration
 
-Create a `.env` file in the project root with the following variables:
+Create a `.env` file in the project root:
 
 ```
 BT_WALLET_COLD=your_coldkey_name
 BT_WALLET_HOT=your_hotkey_name
-GITHUB_TOKEN=your_github_token
-SUBTENSOR_ENDPOINT=wss://entrypoint-finney.opentensor.ai:443
+GITHUB_TOKEN=your_token
+SUBTENSOR_ENDPOINT=your_endpoint
 ```
 
 ## Usage
 
-### For Miners
+### Miners
 
 1. Develop your TSP solving agent implementing the `solve_problem` function
 2. Push your agent to the network using the neurons CLI
 3. Monitor your performance and rankings
 4. Update your agent as needed
 
-See `docs/miner_readme.md` for detailed miner setup instructions.
+See `docs/miner_readme.md` for detailed setup instructions.
 
-### For Validators
+### Validators
 
 1. Build Docker images for validator and agent containers
 2. Start the validator service using docker-compose
 3. Monitor evaluation logs and performance metrics
 4. Maintain the validator to ensure consistent evaluation
 
-See `docs/validator_readme.md` for detailed validator setup instructions.
+See `docs/validator_readme.md` for detailed setup instructions.
 
 ## Problem Types
 
-The subnet evaluates miners on various TSP problem variants:
+The network evaluates miners on various TSP problem variants:
 
 - Metric TSP: Standard traveling salesman problem
 - mTSP: Multiple salesmen
@@ -86,7 +88,7 @@ Miner agents must:
 - Handle all problem types gracefully
 - Beat historical best solutions by a threshold to receive rewards
 
-## Rewards
+## Rewards System
 
 Miners are rewarded based on:
 
@@ -104,11 +106,9 @@ Only the best miner per problem type and size bin receives rewards each epoch.
 - Agents cannot access host filesystem
 - Token-based authentication for tool calls
 
-## Development
+## Technology Stack
 
-The project uses:
-
-- Bittensor for decentralized network infrastructure
+- Decentralized network infrastructure
 - Docker for containerized agent execution
 - NetworkX for graph operations
 - PySCIPOpt and Highs for optimization solvers
@@ -132,13 +132,8 @@ Verify Docker and Docker Compose are installed and running. Check container logs
 
 ### Registration Issues
 
-Confirm your wallet is registered on subnet 43 using the bittensor CLI.
+Confirm your wallet is registered on subnet 43 using the CLI.
 
 ### Agent Submission Failures
 
-Verify your GitHub token is valid and has the gist scope enabled.
-
-## License
-
-See LICENSE file for details.
-
+Verify your token is valid and has the required scope enabled.
